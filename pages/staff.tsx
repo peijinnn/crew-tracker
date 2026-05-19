@@ -1,10 +1,10 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { useAuth, api } from '../lib/useAuth'
 import Nav from '../components/Nav'
 
-const TRANSPORT_RATE = 0.30
+const TRANSPORT_RATE = 0.45
 
 function fmt(dt: string) {
   if (!dt) return '—'
@@ -42,6 +42,40 @@ export default function Staff() {
   const [claimOther, setClaimOther] = useState(false)
   const [otherDesc, setOtherDesc] = useState('')
   const [otherAmt, setOtherAmt] = useState('')
+
+  const fromRef = useRef<HTMLInputElement>(null)
+  const toRef = useRef<HTMLInputElement>(null)
+  const fromACRef = useRef<any>(null)
+  const toACRef = useRef<any>(null)
+
+  useEffect(() => {
+    if (!claimTransport) { fromACRef.current = null; toACRef.current = null; return }
+    const init = () => {
+      const g = (window as any).google
+      if (!g?.maps?.places || !fromRef.current || !toRef.current || fromACRef.current) return
+      const opts = { componentRestrictions: { country: 'my' }, fields: ['geometry', 'formatted_address', 'name'] }
+      fromACRef.current = new g.maps.places.Autocomplete(fromRef.current, opts)
+      toACRef.current = new g.maps.places.Autocomplete(toRef.current, opts)
+      const calcDist = () => {
+        const fp = fromACRef.current?.getPlace()
+        const tp = toACRef.current?.getPlace()
+        if (!fp?.geometry || !tp?.geometry) return
+        setFromLoc(fp.formatted_address || fp.name || '')
+        setToLoc(tp.formatted_address || tp.name || '')
+        new g.maps.DistanceMatrixService().getDistanceMatrix(
+          { origins: [fp.geometry.location], destinations: [tp.geometry.location], travelMode: 'DRIVING' },
+          (res: any, status: string) => {
+            if (status === 'OK' && res.rows[0].elements[0].status === 'OK')
+              setDistKm((res.rows[0].elements[0].distance.value / 1000).toFixed(1))
+          }
+        )
+      }
+      fromACRef.current.addListener('place_changed', calcDist)
+      toACRef.current.addListener('place_changed', calcDist)
+    }
+    const t = setTimeout(init, 150)
+    return () => clearTimeout(t)
+  }, [claimTransport])
 
   type Event = { id: string; name: string; venue: string; event_date: string; assigned_role?: string }
   type Session = { id: string; event_id: string; check_in: string; check_out?: string; hours?: number; check_in_lat?: number; check_in_lng?: number; events?: { name: string; venue: string }; role?: string }
@@ -116,7 +150,7 @@ export default function Staff() {
     let t = 0
     if (claimMeal) t += (parseFloat(mealAmt) || 0) * (parseInt(mealSessions) || 1)
     if (claimParking) t += parseFloat(parkingAmt) || 0
-    if (claimTransport) t += (parseFloat(distKm) || 0) * 2 * TRANSPORT_RATE
+    if (claimTransport) t += (parseFloat(distKm) || 0) * TRANSPORT_RATE
     if (claimOther) t += parseFloat(otherAmt) || 0
     return t
   }
@@ -126,7 +160,7 @@ export default function Staff() {
     const items = []
     if (claimMeal) items.push({ type: 'meal', description: `Meal allowance (${mealSessions} session${parseInt(mealSessions) > 1 ? 's' : ''})`, amount: (parseFloat(mealAmt) || 0) * (parseInt(mealSessions) || 1) })
     if (claimParking) items.push({ type: 'parking', description: `Parking${parkingNote ? ' — ' + parkingNote : ''}`, amount: parseFloat(parkingAmt) || 0, receipt_note: parkingNote })
-    if (claimTransport) items.push({ type: 'transport', description: `Transport ${fromLoc} → ${toLoc}`, amount: (parseFloat(distKm) || 0) * 2 * TRANSPORT_RATE, distance_km: parseFloat(distKm), from_location: fromLoc, to_location: toLoc })
+    if (claimTransport) items.push({ type: 'transport', description: `Transport ${fromLoc} → ${toLoc}`, amount: (parseFloat(distKm) || 0) * TRANSPORT_RATE, distance_km: parseFloat(distKm), from_location: fromLoc, to_location: toLoc })
     if (claimOther) items.push({ type: 'other', description: otherDesc, amount: parseFloat(otherAmt) || 0 })
     if (!items.length) { setMsg({ type: 'error', text: 'Add at least one claim' }); return }
 
@@ -275,13 +309,13 @@ export default function Staff() {
             {claimTransport && (
               <div style={{ paddingLeft: '24px', marginBottom: '12px' }}>
                 <div className="grid2">
-                  <div className="field"><label>From (your area)</label><input type="text" value={fromLoc} onChange={e => setFromLoc(e.target.value)} placeholder="e.g. Cheras, KL" /></div>
-                  <div className="field"><label>To (venue)</label><input type="text" value={toLoc} onChange={e => setToLoc(e.target.value)} placeholder="e.g. KLCC" /></div>
+                  <div className="field"><label>From</label><input ref={fromRef} type="text" placeholder="Type your starting location..." /></div>
+                  <div className="field"><label>To</label><input ref={toRef} type="text" placeholder="Type destination..." /></div>
                 </div>
                 <div className="field">
-                  <label>One-way distance (km) — check Google Maps</label>
-                  <input type="number" value={distKm} onChange={e => setDistKm(e.target.value)} placeholder="km" step="0.5" />
-                  {distKm && <div style={{ fontSize: '12px', color: 'var(--accent)', marginTop: '4px' }}>Return trip: RM {((parseFloat(distKm) || 0) * 2 * TRANSPORT_RATE).toFixed(2)} ({distKm}km × 2 × RM{TRANSPORT_RATE})</div>}
+                  <label>Distance (km) — auto-filled from Google Maps</label>
+                  <input type="number" value={distKm} onChange={e => setDistKm(e.target.value)} placeholder="Select locations above to auto-calculate" step="0.1" />
+                  {distKm && <div style={{ fontSize: '12px', color: 'var(--accent)', marginTop: '4px' }}>RM {((parseFloat(distKm) || 0) * TRANSPORT_RATE).toFixed(2)} ({distKm}km × RM{TRANSPORT_RATE})</div>}
                 </div>
               </div>
             )}
