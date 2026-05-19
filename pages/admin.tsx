@@ -214,7 +214,7 @@ export default function Admin() {
               {crew.length === 0 ? <div className="empty">No crew yet</div> : (
                 <div className="table-wrap">
                   <table>
-                    <thead><tr><th>Member</th><th>Role</th><th>Contact</th><th>Rate</th><th>Area</th><th>Bank / e-wallet</th><th></th></tr></thead>
+                    <thead><tr><th>Member</th><th>Role</th><th>Contact</th><th>Rate</th><th></th></tr></thead>
                     <tbody>
                       {crew.map((c, i) => (
                         <tr key={c.id}>
@@ -227,8 +227,6 @@ export default function Admin() {
                           <td><span className="badge badge-paid" style={{ textTransform: 'capitalize' }}>{c.role.replace('-', ' ')}</span></td>
                           <td style={{ fontSize: '13px' }}>{c.phone || '—'}</td>
                           <td>RM {(c.hourly_rate || 0).toFixed(2)}/hr</td>
-                          <td style={{ fontSize: '13px' }}>{c.home_area || '—'}</td>
-                          <td style={{ fontSize: '12px', color: 'var(--muted)' }}>{c.bank_details || '—'}</td>
                           <td><button className="btn" style={{ padding: '4px 10px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => removeCrew(c.id, c.name)}>Remove</button></td>
                         </tr>
                       ))}
