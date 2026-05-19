@@ -36,7 +36,7 @@ export default function Admin() {
   const [newName, setNewName] = useState(''); const [newEmail, setNewEmail] = useState('')
   const [newPass, setNewPass] = useState(''); const [newPhone, setNewPhone] = useState('')
   const [newRate, setNewRate] = useState(''); const [newArea, setNewArea] = useState('')
-  const [newBank, setNewBank] = useState(''); const [newRole, setNewRole] = useState('staff')
+  const [newBank, setNewBank] = useState(''); const [newRole, setNewRole] = useState('crew')
 
   // New event form
   const [evName, setEvName] = useState(''); const [evVenue, setEvVenue] = useState('')
@@ -202,7 +202,7 @@ export default function Admin() {
                 <div className="field"><label>Password *</label><input type="password" value={newPass} onChange={e => setNewPass(e.target.value)} placeholder="Set their login password" /></div>
                 <div className="field"><label>Phone</label><input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="012-345 6789" /></div>
                 <div className="field"><label>Hourly rate (RM)</label><input type="number" value={newRate} onChange={e => setNewRate(e.target.value)} placeholder="12.00" step="0.50" /></div>
-                <div className="field"><label>Role</label><select value={newRole} onChange={e => setNewRole(e.target.value)}><option value="staff">Staff</option><option value="admin">Admin</option></select></div>
+                <div className="field"><label>Role</label><select value={newRole} onChange={e => setNewRole(e.target.value)}><option value="crew">Crew</option><option value="full-time">Full Time</option><option value="team-lead">Team Lead</option><option value="admin">Admin</option></select></div>
                 <div className="field"><label>Home area</label><input value={newArea} onChange={e => setNewArea(e.target.value)} placeholder="Petaling Jaya" /></div>
                 <div className="field"><label>Bank / e-wallet</label><input value={newBank} onChange={e => setNewBank(e.target.value)} placeholder="Maybank 1234 5678 9012" /></div>
               </div>
@@ -214,7 +214,7 @@ export default function Admin() {
               {crew.length === 0 ? <div className="empty">No crew yet</div> : (
                 <div className="table-wrap">
                   <table>
-                    <thead><tr><th>Member</th><th>Contact</th><th>Rate</th><th>Area</th><th>Bank / e-wallet</th><th></th></tr></thead>
+                    <thead><tr><th>Member</th><th>Role</th><th>Contact</th><th>Rate</th><th>Area</th><th>Bank / e-wallet</th><th></th></tr></thead>
                     <tbody>
                       {crew.map((c, i) => (
                         <tr key={c.id}>
@@ -224,6 +224,7 @@ export default function Admin() {
                               <div><div style={{ fontWeight: 600 }}>{c.name}</div><div style={{ fontSize: '12px', color: 'var(--muted)' }}>{c.email}</div></div>
                             </div>
                           </td>
+                          <td><span className="badge badge-paid" style={{ textTransform: 'capitalize' }}>{c.role.replace('-', ' ')}</span></td>
                           <td style={{ fontSize: '13px' }}>{c.phone || '—'}</td>
                           <td>RM {(c.hourly_rate || 0).toFixed(2)}/hr</td>
                           <td style={{ fontSize: '13px' }}>{c.home_area || '—'}</td>
@@ -258,7 +259,7 @@ export default function Admin() {
               <div className="field">
                 <label>Assign crew (hold Ctrl/Cmd to select multiple)</label>
                 <select multiple value={evAssigned} onChange={e => setEvAssigned(Array.from(e.target.selectedOptions, o => o.value))} style={{ height: '120px' }}>
-                  {crew.filter(c => c.role === 'staff').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {crew.filter(c => c.role !== 'admin').map(c => <option key={c.id} value={c.id}>{c.name} ({c.role})</option>)}
                 </select>
               </div>
               <button className="btn btn-primary" onClick={addEvent} disabled={busy}>{busy ? <span className="spinner" /> : '+ Create event'}</button>
