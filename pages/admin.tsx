@@ -203,8 +203,6 @@ export default function Admin() {
                 <div className="field"><label>Phone</label><input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="012-345 6789" /></div>
                 <div className="field"><label>Hourly rate (RM)</label><input type="number" value={newRate} onChange={e => setNewRate(e.target.value)} placeholder="12.00" step="0.50" /></div>
                 <div className="field"><label>Role</label><select value={newRole} onChange={e => setNewRole(e.target.value)}><option value="crew">Crew</option><option value="full-time">Full Time</option><option value="team-lead">Team Lead</option><option value="admin">Admin</option></select></div>
-                <div className="field"><label>Home area</label><input value={newArea} onChange={e => setNewArea(e.target.value)} placeholder="Petaling Jaya" /></div>
-                <div className="field"><label>Bank / e-wallet</label><input value={newBank} onChange={e => setNewBank(e.target.value)} placeholder="Maybank 1234 5678 9012" /></div>
               </div>
               <button className="btn btn-primary" onClick={addCrew} disabled={busy}>{busy ? <span className="spinner" /> : '+ Add crew member'}</button>
             </div>
