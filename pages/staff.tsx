@@ -33,7 +33,8 @@ export default function Staff() {
   const [mealAmt, setMealAmt] = useState('')
   const [mealSessions, setMealSessions] = useState('1')
   const [claimTransport, setClaimTransport] = useState(false)
-  const [transportLegs, setTransportLegs] = useState<{ from: string; to: string; distKm: string }[]>([{ from: '', to: '', distKm: '' }])
+  const [routePoints, setRoutePoints] = useState<string[]>(['', ''])
+  const [totalDistKm, setTotalDistKm] = useState('')
   const [claimParking, setClaimParking] = useState(false)
   const [parkingAmt, setParkingAmt] = useState('')
   const [parkingNote, setParkingNote] = useState('')
@@ -41,40 +42,44 @@ export default function Staff() {
   const [otherDesc, setOtherDesc] = useState('')
   const [otherAmt, setOtherAmt] = useState('')
 
-  const fromRefs = useRef<(HTMLInputElement | null)[]>([])
-  const toRefs = useRef<(HTMLInputElement | null)[]>([])
+  const pointRefs = useRef<(HTMLInputElement | null)[]>([])
+  const pointLocs = useRef<any[]>([])
   const acInited = useRef<boolean[]>([])
 
-  const initACForIndex = (i: number) => {
+  const calcRoute = () => {
     const g = (window as any).google
-    if (!g?.maps?.places || acInited.current[i]) return
-    const fromEl = fromRefs.current[i]; const toEl = toRefs.current[i]
-    if (!fromEl || !toEl) return
+    const locs = pointLocs.current.filter(Boolean)
+    if (locs.length < 2) { setTotalDistKm(''); return }
+    new g.maps.DirectionsService().route({
+      origin: locs[0],
+      destination: locs[locs.length - 1],
+      waypoints: locs.slice(1, -1).map((loc: any) => ({ location: loc, stopover: true })),
+      travelMode: 'DRIVING',
+    }, (res: any, status: string) => {
+      if (status === 'OK')
+        setTotalDistKm((res.routes[0].legs.reduce((s: number, l: any) => s + l.distance.value, 0) / 1000).toFixed(1))
+    })
+  }
+
+  const initACForPoint = (i: number) => {
+    const g = (window as any).google
+    if (!g?.maps?.places || acInited.current[i] || !pointRefs.current[i]) return
     acInited.current[i] = true
-    const opts = { componentRestrictions: { country: 'my' }, fields: ['geometry', 'formatted_address', 'name'] }
-    const fromAC = new g.maps.places.Autocomplete(fromEl, opts)
-    const toAC = new g.maps.places.Autocomplete(toEl, opts)
-    const calcDist = () => {
-      const fp = fromAC.getPlace(); const tp = toAC.getPlace()
-      if (!fp?.geometry || !tp?.geometry) return
-      setTransportLegs(prev => { const u = [...prev]; u[i] = { ...u[i], from: fp.formatted_address || fp.name || '', to: tp.formatted_address || tp.name || '' }; return u })
-      new g.maps.DistanceMatrixService().getDistanceMatrix(
-        { origins: [fp.geometry.location], destinations: [tp.geometry.location], travelMode: 'DRIVING' },
-        (res: any, status: string) => {
-          if (status === 'OK' && res.rows[0].elements[0].status === 'OK')
-            setTransportLegs(prev => { const u = [...prev]; u[i] = { ...u[i], distKm: (res.rows[0].elements[0].distance.value / 1000).toFixed(1) }; return u })
-        }
-      )
-    }
-    fromAC.addListener('place_changed', calcDist)
-    toAC.addListener('place_changed', calcDist)
+    const ac = new g.maps.places.Autocomplete(pointRefs.current[i]!, { componentRestrictions: { country: 'my' }, fields: ['geometry', 'formatted_address', 'name'] })
+    ac.addListener('place_changed', () => {
+      const p = ac.getPlace()
+      if (!p?.geometry) return
+      setRoutePoints(prev => { const u = [...prev]; u[i] = p.formatted_address || p.name || ''; return u })
+      pointLocs.current[i] = p.geometry.location
+      calcRoute()
+    })
   }
 
   useEffect(() => {
-    if (!claimTransport) { acInited.current = []; return }
-    const t = setTimeout(() => transportLegs.forEach((_, i) => initACForIndex(i)), 150)
+    if (!claimTransport) { acInited.current = []; pointLocs.current = []; setTotalDistKm(''); return }
+    const t = setTimeout(() => routePoints.forEach((_, i) => initACForPoint(i)), 150)
     return () => clearTimeout(t)
-  }, [claimTransport, transportLegs.length])
+  }, [claimTransport, routePoints.length])
 
   type Event = { id: string; name: string; venue: string; event_date: string; assigned_role?: string }
   type Session = { id: string; event_id: string; check_in: string; check_out?: string; hours?: number; check_in_lat?: number; check_in_lng?: number; events?: { name: string; venue: string }; role?: string }
@@ -149,7 +154,7 @@ export default function Staff() {
     let t = 0
     if (claimMeal) t += (parseFloat(mealAmt) || 0) * (parseInt(mealSessions) || 1)
     if (claimParking) t += parseFloat(parkingAmt) || 0
-    if (claimTransport) t += transportLegs.reduce((s, l) => s + (parseFloat(l.distKm) || 0) * TRANSPORT_RATE, 0)
+    if (claimTransport) t += (parseFloat(totalDistKm) || 0) * TRANSPORT_RATE
     if (claimOther) t += parseFloat(otherAmt) || 0
     return t
   }
@@ -159,7 +164,7 @@ export default function Staff() {
     const items = []
     if (claimMeal) items.push({ type: 'meal', description: `Meal allowance (${mealSessions} session${parseInt(mealSessions) > 1 ? 's' : ''})`, amount: (parseFloat(mealAmt) || 0) * (parseInt(mealSessions) || 1) })
     if (claimParking) items.push({ type: 'parking', description: `Parking${parkingNote ? ' — ' + parkingNote : ''}`, amount: parseFloat(parkingAmt) || 0, receipt_note: parkingNote })
-    if (claimTransport) transportLegs.filter(l => l.distKm).forEach(l => items.push({ type: 'transport', description: `Transport ${l.from} → ${l.to}`, amount: parseFloat(l.distKm) * TRANSPORT_RATE, distance_km: parseFloat(l.distKm), from_location: l.from, to_location: l.to }))
+    if (claimTransport && totalDistKm) items.push({ type: 'transport', description: `Transport ${routePoints.filter(Boolean).join(' → ')}`, amount: parseFloat(totalDistKm) * TRANSPORT_RATE, distance_km: parseFloat(totalDistKm), from_location: routePoints[0], to_location: routePoints[routePoints.length - 1] })
     if (claimOther) items.push({ type: 'other', description: otherDesc, amount: parseFloat(otherAmt) || 0 })
     if (!items.length) { setMsg({ type: 'error', text: 'Add at least one claim' }); return }
 
@@ -170,7 +175,7 @@ export default function Staff() {
       setMsg({ type: 'success', text: `✅ Claim submitted! RM ${claimTotal().toFixed(2)} pending approval.` })
       setClaimMeal(false); setClaimTransport(false); setClaimParking(false); setClaimOther(false)
       setMealAmt(''); setParkingAmt(''); setOtherAmt('')
-      setTransportLegs([{ from: '', to: '', distKm: '' }])
+      setRoutePoints(['', '']); setTotalDistKm('')
       await load()
     } catch { setMsg({ type: 'error', text: 'Failed to submit claim' }) }
     finally { setBusy(false) }
@@ -308,24 +313,36 @@ export default function Staff() {
             </label>
             {claimTransport && (
               <div style={{ paddingLeft: '24px', marginBottom: '12px' }}>
-                {transportLegs.map((leg, i) => (
-                  <div key={i} style={{ border: '1px solid var(--border-md)', borderRadius: '8px', padding: '12px', marginBottom: '10px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 600 }}>Trip {i + 1}</span>
-                      {transportLegs.length > 1 && <button className="btn" style={{ padding: '2px 8px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => { setTransportLegs(prev => prev.filter((_, j) => j !== i)); acInited.current[i] = false }}>Remove</button>}
+                {routePoints.map((_, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: i === 0 ? '#22c55e' : i === routePoints.length - 1 ? '#ef4444' : '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#fff', fontWeight: 700, flexShrink: 0 }}>
+                      {String.fromCharCode(65 + i)}
                     </div>
-                    <div className="grid2">
-                      <div className="field"><label>From</label><input ref={el => { fromRefs.current[i] = el }} type="text" placeholder="Type starting location..." /></div>
-                      <div className="field"><label>To</label><input ref={el => { toRefs.current[i] = el }} type="text" placeholder="Type destination..." /></div>
-                    </div>
-                    <div className="field">
-                      <label>Distance (km)</label>
-                      <input type="text" value={leg.distKm} readOnly placeholder="Auto-filled when both locations selected" style={{ background: 'var(--bg-input, #f5f5f5)', color: 'var(--muted)', cursor: 'not-allowed' }} />
-                      {leg.distKm && <div style={{ fontSize: '12px', color: 'var(--accent)', marginTop: '4px' }}>RM {(parseFloat(leg.distKm) * TRANSPORT_RATE).toFixed(2)} ({leg.distKm}km × RM{TRANSPORT_RATE})</div>}
-                    </div>
+                    <input
+                      ref={el => { pointRefs.current[i] = el }}
+                      type="text"
+                      placeholder={i === 0 ? 'Starting point' : i === routePoints.length - 1 ? 'Destination' : `Stop ${i}`}
+                      style={{ flex: 1 }}
+                    />
+                    {routePoints.length > 2 && i !== 0 && i !== routePoints.length - 1 && (
+                      <button className="btn" style={{ padding: '2px 8px', fontSize: '12px', color: 'var(--danger)', flexShrink: 0 }} onClick={() => {
+                        setRoutePoints(prev => prev.filter((_, j) => j !== i))
+                        pointLocs.current.splice(i, 1)
+                        acInited.current.splice(i, 1)
+                        calcRoute()
+                      }}>✕</button>
+                    )}
                   </div>
                 ))}
-                <button className="btn" style={{ fontSize: '13px' }} onClick={() => setTransportLegs(prev => [...prev, { from: '', to: '', distKm: '' }])}>+ Add another trip</button>
+                <button className="btn" style={{ fontSize: '13px', marginBottom: '12px' }} onClick={() => {
+                  setRoutePoints(prev => { const u = [...prev]; u.splice(u.length - 1, 0, ''); return u })
+                  pointLocs.current.splice(pointLocs.current.length - 1, 0, null)
+                }}>+ Add stop</button>
+                <div className="field">
+                  <label>Total route distance (km)</label>
+                  <input type="text" value={totalDistKm} readOnly placeholder="Auto-calculated from route above" style={{ background: 'var(--bg-input, #f5f5f5)', color: 'var(--muted)', cursor: 'not-allowed' }} />
+                  {totalDistKm && <div style={{ fontSize: '12px', color: 'var(--accent)', marginTop: '4px' }}>RM {(parseFloat(totalDistKm) * TRANSPORT_RATE).toFixed(2)} ({totalDistKm}km × RM{TRANSPORT_RATE})</div>}
+                </div>
               </div>
             )}
 
