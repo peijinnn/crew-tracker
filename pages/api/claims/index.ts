@@ -20,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (req.method === 'POST') {
       const payload = requireAuth(req)
-      const { event_id, session_id, type, description, amount, distance_km, from_location, to_location, receipt_note } = req.body
+      const { event_id, session_id, type, description, amount, distance_km, from_location, to_location, receipt_note, receipt_url } = req.body
       if (!event_id || !type || amount === undefined) {
         return res.status(400).json({ error: 'event_id, type and amount required' })
       }
@@ -30,7 +30,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         .insert({
           user_id: payload.userId,
           event_id, session_id, type, description, amount,
-          distance_km, from_location, to_location, receipt_note,
+          distance_km, from_location, to_location, receipt_note, receipt_url,
           status: 'pending'
         })
         .select(`*, events(id, name)`)

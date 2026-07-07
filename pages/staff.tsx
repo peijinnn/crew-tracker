@@ -3,6 +3,9 @@ import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { useAuth, api } from '../lib/useAuth'
 import Nav from '../components/Nav'
+import { DndContext, closestCenter, PointerSensor, TouchSensor, KeyboardSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 const TRANSPORT_RATE = 0.45
 
@@ -12,6 +15,66 @@ function fmt(dt: string) {
 }
 function fmtDate(dt: string) {
   return new Date(dt).toLocaleDateString('en-MY', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function SortableRoutePoint({ rp, i, total, isConfirmed, onPlaceSelected, onRemove }: {
+  rp: { id: string; address: string }
+  i: number
+  total: number
+  isConfirmed: boolean
+  onPlaceSelected: (loc: any, addr: string) => void
+  onRemove: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: rp.id })
+  const color = i === 0 ? '#22c55e' : i === total - 1 ? '#ef4444' : '#f59e0b'
+  return (
+    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+      <button {...attributes} {...listeners} style={{ cursor: isDragging ? 'grabbing' : 'grab', background: 'none', border: 'none', padding: '4px 2px', color: 'var(--muted)', flexShrink: 0, fontSize: '18px', lineHeight: 1, touchAction: 'none' }} title="Drag to reorder">⠿</button>
+      <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#fff', fontWeight: 700, flexShrink: 0 }}>
+        {String.fromCharCode(65 + i)}
+      </div>
+      <RoutePointInput
+        placeholder={i === 0 ? 'Starting point' : i === total - 1 ? 'Destination' : `Stop ${String.fromCharCode(65 + i)}`}
+        onPlaceSelected={onPlaceSelected}
+      />
+      {isConfirmed && <span style={{ color: '#22c55e', fontSize: '14px', flexShrink: 0 }}>✓</span>}
+      {total > 2 && (
+        <button className="btn" style={{ padding: '2px 8px', fontSize: '12px', color: 'var(--danger)', flexShrink: 0 }} onClick={onRemove}>✕</button>
+      )}
+    </div>
+  )
+}
+
+function RoutePointInput({ placeholder, onPlaceSelected }: {
+  placeholder: string
+  onPlaceSelected: (location: any, address: string) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const cbRef = useRef(onPlaceSelected)
+  cbRef.current = onPlaceSelected
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | undefined
+    const init = () => {
+      const g = (window as any).google
+      if (!g?.maps?.places || !inputRef.current) return false
+      const ac = new g.maps.places.Autocomplete(inputRef.current, {
+        componentRestrictions: { country: 'my' },
+        fields: ['geometry', 'formatted_address', 'name'],
+      })
+      ac.addListener('place_changed', () => {
+        const p = ac.getPlace()
+        if (p?.geometry) cbRef.current(p.geometry.location, p.formatted_address || p.name || '')
+      })
+      return true
+    }
+    if (!init()) {
+      interval = setInterval(() => { if (init()) clearInterval(interval) }, 300)
+    }
+    return () => { if (interval) clearInterval(interval) }
+  }, [])
+
+  return <input ref={inputRef} type="text" placeholder={placeholder} style={{ flex: 1 }} />
 }
 
 export default function Staff() {
@@ -33,53 +96,61 @@ export default function Staff() {
   const [mealAmt, setMealAmt] = useState('')
   const [mealSessions, setMealSessions] = useState('1')
   const [claimTransport, setClaimTransport] = useState(false)
-  const [routePoints, setRoutePoints] = useState<string[]>(['', ''])
+  const [routePoints, setRoutePoints] = useState<{ id: string; address: string }[]>([{ id: 'a', address: '' }, { id: 'b', address: '' }])
   const [totalDistKm, setTotalDistKm] = useState('')
   const [claimParking, setClaimParking] = useState(false)
   const [parkingAmt, setParkingAmt] = useState('')
   const [parkingNote, setParkingNote] = useState('')
+  const [parkingFile, setParkingFile] = useState<File | null>(null)
+  const [claimToll, setClaimToll] = useState(false)
+  const [tollAmt, setTollAmt] = useState('')
+  const [tollNote, setTollNote] = useState('')
+  const [tollFile, setTollFile] = useState<File | null>(null)
   const [claimOther, setClaimOther] = useState(false)
   const [otherDesc, setOtherDesc] = useState('')
   const [otherAmt, setOtherAmt] = useState('')
 
-  const pointRefs = useRef<(HTMLInputElement | null)[]>([])
-  const pointLocs = useRef<any[]>([])
-  const acInited = useRef<boolean[]>([])
-
-  const calcRoute = () => {
-    const g = (window as any).google
-    const locs = pointLocs.current.filter(Boolean)
-    if (locs.length < 2) { setTotalDistKm(''); return }
-    new g.maps.DirectionsService().route({
-      origin: locs[0],
-      destination: locs[locs.length - 1],
-      waypoints: locs.slice(1, -1).map((loc: any) => ({ location: loc, stopover: true })),
-      travelMode: 'DRIVING',
-    }, (res: any, status: string) => {
-      if (status === 'OK')
-        setTotalDistKm((res.routes[0].legs.reduce((s: number, l: any) => s + l.distance.value, 0) / 1000).toFixed(1))
-    })
-  }
-
-  const initACForPoint = (i: number) => {
-    const g = (window as any).google
-    if (!g?.maps?.places || acInited.current[i] || !pointRefs.current[i]) return
-    acInited.current[i] = true
-    const ac = new g.maps.places.Autocomplete(pointRefs.current[i]!, { componentRestrictions: { country: 'my' }, fields: ['geometry', 'formatted_address', 'name'] })
-    ac.addListener('place_changed', () => {
-      const p = ac.getPlace()
-      if (!p?.geometry) return
-      setRoutePoints(prev => { const u = [...prev]; u[i] = p.formatted_address || p.name || ''; return u })
-      pointLocs.current[i] = p.geometry.location
-      calcRoute()
-    })
-  }
+  const [calculating, setCalculating] = useState(false)
+  const [selectedLocs, setSelectedLocs] = useState<Record<string, { lat: number; lng: number }>>({})
 
   useEffect(() => {
-    if (!claimTransport) { acInited.current = []; pointLocs.current = []; setTotalDistKm(''); return }
-    const t = setTimeout(() => routePoints.forEach((_, i) => initACForPoint(i)), 150)
-    return () => clearTimeout(t)
-  }, [claimTransport, routePoints.length])
+    if (!claimTransport) { setSelectedLocs({}); setTotalDistKm('') }
+  }, [claimTransport])
+
+  const calcRoute = async () => {
+    const locs = routePoints.map(rp => selectedLocs[rp.id]).filter(Boolean)
+    if (locs.length < 2) { setMsg({ type: 'error', text: `Only ${locs.length}/${routePoints.length} stops confirmed — click a suggestion from the dropdown for each address box` }); return }
+    setCalculating(true); setMsg(null)
+    try {
+      const r = await fetch('/api/route', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ waypoints: locs }),
+      })
+      const data = await r.json()
+      if (data.error) { setMsg({ type: 'error', text: `Route error: ${data.error}${data.message ? ' — ' + data.message : ''}` }); return }
+      setTotalDistKm(String(data.distance_km))
+    } catch { setMsg({ type: 'error', text: 'Failed to calculate route' }) }
+    finally { setCalculating(false) }
+  }
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (over && active.id !== over.id) {
+      setRoutePoints(prev => {
+        const from = prev.findIndex(rp => rp.id === String(active.id))
+        const to = prev.findIndex(rp => rp.id === String(over.id))
+        return arrayMove(prev, from, to)
+      })
+      setTotalDistKm('')
+    }
+  }
 
   type Event = { id: string; name: string; venue: string; event_date: string; assigned_role?: string }
   type Session = { id: string; event_id: string; check_in: string; check_out?: string; hours?: number; check_in_lat?: number; check_in_lng?: number; events?: { name: string; venue: string }; role?: string }
@@ -150,10 +221,30 @@ export default function Staff() {
     } finally { setLocating(false); setBusy(false) }
   }
 
+  const uploadFile = async (file: File): Promise<string | null> => {
+    return new Promise(resolve => {
+      const reader = new FileReader()
+      reader.onload = async e => {
+        try {
+          const base64 = (e.target!.result as string).split(',')[1]
+          const r = await fetch('/api/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: file.name, contentType: file.type, data: base64 }),
+          })
+          const d = await r.json()
+          resolve(d.url || null)
+        } catch { resolve(null) }
+      }
+      reader.readAsDataURL(file)
+    })
+  }
+
   const claimTotal = () => {
     let t = 0
     if (claimMeal) t += (parseFloat(mealAmt) || 0) * (parseInt(mealSessions) || 1)
     if (claimParking) t += parseFloat(parkingAmt) || 0
+    if (claimToll) t += parseFloat(tollAmt) || 0
     if (claimTransport) t += (parseFloat(totalDistKm) || 0) * TRANSPORT_RATE
     if (claimOther) t += parseFloat(otherAmt) || 0
     return t
@@ -161,21 +252,28 @@ export default function Staff() {
 
   const submitClaim = async () => {
     if (!claimEventId) { setMsg({ type: 'error', text: 'Select an event' }); return }
-    const items = []
-    if (claimMeal) items.push({ type: 'meal', description: `Meal allowance (${mealSessions} session${parseInt(mealSessions) > 1 ? 's' : ''})`, amount: (parseFloat(mealAmt) || 0) * (parseInt(mealSessions) || 1) })
-    if (claimParking) items.push({ type: 'parking', description: `Parking${parkingNote ? ' — ' + parkingNote : ''}`, amount: parseFloat(parkingAmt) || 0, receipt_note: parkingNote })
-    if (claimTransport && totalDistKm) items.push({ type: 'transport', description: `Transport ${routePoints.filter(Boolean).join(' → ')}`, amount: parseFloat(totalDistKm) * TRANSPORT_RATE, distance_km: parseFloat(totalDistKm), from_location: routePoints[0], to_location: routePoints[routePoints.length - 1] })
-    if (claimOther) items.push({ type: 'other', description: otherDesc, amount: parseFloat(otherAmt) || 0 })
-    if (!items.length) { setMsg({ type: 'error', text: 'Add at least one claim' }); return }
-
     setBusy(true); setMsg(null)
     try {
+      const [parkingUrl, tollUrl] = await Promise.all([
+        claimParking && parkingFile ? uploadFile(parkingFile) : Promise.resolve(null),
+        claimToll && tollFile ? uploadFile(tollFile) : Promise.resolve(null),
+      ])
+
+      const items: Record<string, unknown>[] = []
+      if (claimMeal) items.push({ type: 'meal', description: `Meal allowance (${mealSessions} session${parseInt(mealSessions) > 1 ? 's' : ''})`, amount: (parseFloat(mealAmt) || 0) * (parseInt(mealSessions) || 1) })
+      if (claimParking) items.push({ type: 'parking', description: `Parking${parkingNote ? ' — ' + parkingNote : ''}`, amount: parseFloat(parkingAmt) || 0, receipt_note: parkingNote, receipt_url: parkingUrl || undefined })
+      if (claimToll) items.push({ type: 'toll', description: `Toll${tollNote ? ' — ' + tollNote : ''}`, amount: parseFloat(tollAmt) || 0, receipt_note: tollNote, receipt_url: tollUrl || undefined })
+      if (claimTransport && totalDistKm) items.push({ type: 'transport', description: `Transport ${routePoints.map(rp => rp.address).filter(Boolean).join(' → ')}`, amount: parseFloat(totalDistKm) * TRANSPORT_RATE, distance_km: parseFloat(totalDistKm), from_location: routePoints[0].address, to_location: routePoints[routePoints.length - 1].address })
+      if (claimOther) items.push({ type: 'other', description: otherDesc, amount: parseFloat(otherAmt) || 0 })
+      if (!items.length) { setMsg({ type: 'error', text: 'Add at least one claim' }); return }
+
       const a = api(token)
       await Promise.all(items.map(item => a.post('/api/claims', { event_id: claimEventId, session_id: claimSessionId || undefined, ...item })))
       setMsg({ type: 'success', text: `✅ Claim submitted! RM ${claimTotal().toFixed(2)} pending approval.` })
-      setClaimMeal(false); setClaimTransport(false); setClaimParking(false); setClaimOther(false)
-      setMealAmt(''); setParkingAmt(''); setOtherAmt('')
-      setRoutePoints(['', '']); setTotalDistKm('')
+      setClaimMeal(false); setClaimTransport(false); setClaimParking(false); setClaimToll(false); setClaimOther(false)
+      setMealAmt(''); setParkingAmt(''); setParkingFile(null); setTollAmt(''); setTollNote(''); setTollFile(null); setOtherAmt('')
+      setSelectedLocs({})
+      setRoutePoints([{ id: 'a', address: '' }, { id: 'b', address: '' }]); setTotalDistKm('')
       await load()
     } catch { setMsg({ type: 'error', text: 'Failed to submit claim' }) }
     finally { setBusy(false) }
@@ -312,35 +410,42 @@ export default function Staff() {
               <input type="checkbox" checked={claimTransport} onChange={e => setClaimTransport(e.target.checked)} /> 🚗 Transport allowance
             </label>
             {claimTransport && (
-              <div style={{ paddingLeft: '24px', marginBottom: '12px' }}>
-                {routePoints.map((_, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                    <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: i === 0 ? '#22c55e' : i === routePoints.length - 1 ? '#ef4444' : '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#fff', fontWeight: 700, flexShrink: 0 }}>
-                      {String.fromCharCode(65 + i)}
-                    </div>
-                    <input
-                      ref={el => { pointRefs.current[i] = el }}
-                      type="text"
-                      placeholder={i === 0 ? 'Starting point' : i === routePoints.length - 1 ? 'Destination' : `Stop ${i}`}
-                      style={{ flex: 1 }}
-                    />
-                    {routePoints.length > 2 && i !== 0 && i !== routePoints.length - 1 && (
-                      <button className="btn" style={{ padding: '2px 8px', fontSize: '12px', color: 'var(--danger)', flexShrink: 0 }} onClick={() => {
-                        setRoutePoints(prev => prev.filter((_, j) => j !== i))
-                        pointLocs.current.splice(i, 1)
-                        acInited.current.splice(i, 1)
-                        calcRoute()
-                      }}>✕</button>
-                    )}
-                  </div>
-                ))}
-                <button className="btn" style={{ fontSize: '13px', marginBottom: '12px' }} onClick={() => {
-                  setRoutePoints(prev => { const u = [...prev]; u.splice(u.length - 1, 0, ''); return u })
-                  pointLocs.current.splice(pointLocs.current.length - 1, 0, null)
-                }}>+ Add stop</button>
-                <div className="field">
+              <div style={{ paddingLeft: '8px', marginBottom: '12px' }}>
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={routePoints.map(rp => rp.id)} strategy={verticalListSortingStrategy}>
+                    {routePoints.map((rp, i) => (
+                      <SortableRoutePoint
+                        key={rp.id}
+                        rp={rp}
+                        i={i}
+                        total={routePoints.length}
+                        isConfirmed={!!selectedLocs[rp.id]}
+                        onPlaceSelected={(loc, addr) => {
+                          setSelectedLocs(prev => ({ ...prev, [rp.id]: { lat: loc.lat(), lng: loc.lng() } }))
+                          setRoutePoints(prev => prev.map(p => p.id === rp.id ? { ...p, address: addr } : p))
+                        }}
+                        onRemove={() => {
+                          setSelectedLocs(prev => { const n = { ...prev }; delete n[rp.id]; return n })
+                          setRoutePoints(prev => prev.filter(p => p.id !== rp.id))
+                          setTotalDistKm('')
+                        }}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
+                <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px', paddingLeft: '32px' }}>
+                  {routePoints.filter(rp => selectedLocs[rp.id]).length}/{routePoints.length} stops confirmed ✓ · drag ⠿ to reorder
+                </div>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', paddingLeft: '32px' }}>
+                  <button className="btn" style={{ fontSize: '13px' }} onClick={() => {
+                    const newId = Math.random().toString(36).slice(2, 6)
+                    setRoutePoints(prev => [...prev, { id: newId, address: '' }])
+                  }}>+ Add stop</button>
+                  <button className="btn btn-primary" style={{ fontSize: '13px' }} onClick={calcRoute} disabled={calculating}>{calculating ? <span className="spinner" /> : 'Calculate route'}</button>
+                </div>
+                <div className="field" style={{ paddingLeft: '32px' }}>
                   <label>Total route distance (km)</label>
-                  <input type="text" value={totalDistKm} readOnly placeholder="Auto-calculated from route above" style={{ background: 'var(--bg-input, #f5f5f5)', color: 'var(--muted)', cursor: 'not-allowed' }} />
+                  <input type="text" value={totalDistKm} readOnly placeholder="Press Calculate route" style={{ background: 'var(--bg-input, #f5f5f5)', color: 'var(--muted)', cursor: 'not-allowed' }} />
                   {totalDistKm && <div style={{ fontSize: '12px', color: 'var(--accent)', marginTop: '4px' }}>RM {(parseFloat(totalDistKm) * TRANSPORT_RATE).toFixed(2)} ({totalDistKm}km × RM{TRANSPORT_RATE})</div>}
                 </div>
               </div>
@@ -351,9 +456,34 @@ export default function Staff() {
               <input type="checkbox" checked={claimParking} onChange={e => setClaimParking(e.target.checked)} /> 🅿️ Parking claim
             </label>
             {claimParking && (
-              <div className="grid2" style={{ marginBottom: '12px', paddingLeft: '24px' }}>
-                <div className="field"><label>Amount (RM)</label><input type="number" value={parkingAmt} onChange={e => setParkingAmt(e.target.value)} placeholder="8.00" step="0.50" /></div>
-                <div className="field"><label>Receipt / note</label><input type="text" value={parkingNote} onChange={e => setParkingNote(e.target.value)} placeholder="Parking ref or location" /></div>
+              <div style={{ marginBottom: '12px', paddingLeft: '24px' }}>
+                <div className="grid2">
+                  <div className="field"><label>Amount (RM)</label><input type="number" value={parkingAmt} onChange={e => setParkingAmt(e.target.value)} placeholder="8.00" step="0.50" /></div>
+                  <div className="field"><label>Note (optional)</label><input type="text" value={parkingNote} onChange={e => setParkingNote(e.target.value)} placeholder="Parking ref or location" /></div>
+                </div>
+                <div className="field">
+                  <label>Receipt <span style={{ fontWeight: 400, color: 'var(--muted)' }}>(image or PDF, max 5MB)</span></label>
+                  <input type="file" accept="image/*,application/pdf" onChange={e => setParkingFile(e.target.files?.[0] || null)} />
+                  {parkingFile && <div style={{ fontSize: '12px', color: 'var(--accent)', marginTop: '4px' }}>📎 {parkingFile.name} ({(parkingFile.size / 1024).toFixed(0)} KB)</div>}
+                </div>
+              </div>
+            )}
+
+            {/* Toll */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '12px', fontWeight: 500 }}>
+              <input type="checkbox" checked={claimToll} onChange={e => setClaimToll(e.target.checked)} /> 🛣️ Toll claim
+            </label>
+            {claimToll && (
+              <div style={{ marginBottom: '12px', paddingLeft: '24px' }}>
+                <div className="grid2">
+                  <div className="field"><label>Amount (RM)</label><input type="number" value={tollAmt} onChange={e => setTollAmt(e.target.value)} placeholder="5.00" step="0.50" /></div>
+                  <div className="field"><label>Note (optional)</label><input type="text" value={tollNote} onChange={e => setTollNote(e.target.value)} placeholder="e.g. SMART Tunnel, PLUS" /></div>
+                </div>
+                <div className="field">
+                  <label>Receipt <span style={{ fontWeight: 400, color: 'var(--muted)' }}>(image or PDF, max 5MB)</span></label>
+                  <input type="file" accept="image/*,application/pdf" onChange={e => setTollFile(e.target.files?.[0] || null)} />
+                  {tollFile && <div style={{ fontSize: '12px', color: 'var(--accent)', marginTop: '4px' }}>📎 {tollFile.name} ({(tollFile.size / 1024).toFixed(0)} KB)</div>}
+                </div>
               </div>
             )}
 

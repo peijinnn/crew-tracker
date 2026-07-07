@@ -15,7 +15,7 @@ function fmtDate(dt: string) {
 type User = { id: string; name: string; email: string; phone?: string; role: string; hourly_rate: number; home_area?: string; bank_details?: string }
 type Event = { id: string; name: string; venue: string; venue_lat?: number; venue_lng?: number; event_date: string; event_assignments?: { user_id: string; role: string; users: { id: string; name: string } }[] }
 type Session = { id: string; user_id: string; event_id: string; check_in: string; check_out?: string; hours?: number; check_in_lat?: number; check_in_lng?: number; users?: { id: string; name: string; hourly_rate: number }; events?: { id: string; name: string; venue: string } }
-type Claim = { id: string; user_id: string; event_id: string; type: string; description?: string; amount: number; status: string; distance_km?: number; from_location?: string; to_location?: string; receipt_note?: string; created_at: string; users?: { id: string; name: string }; events?: { id: string; name: string } }
+type Claim = { id: string; user_id: string; event_id: string; type: string; description?: string; amount: number; status: string; distance_km?: number; from_location?: string; to_location?: string; receipt_note?: string; receipt_url?: string; created_at: string; users?: { id: string; name: string }; events?: { id: string; name: string } }
 
 const AVATAR_COLORS = ['#dbeafe:#1d4ed8','#dcfce7:#15803d','#fef3c7:#b45309','#fce7f3:#be185d','#ede9fe:#7c3aed','#ffedd5:#c2410c']
 function avatarStyle(i: number) { const [bg, fg] = AVATAR_COLORS[i % AVATAR_COLORS.length].split(':'); return { background: bg, color: fg } }
@@ -330,7 +330,7 @@ export default function Admin() {
             {claims.length === 0 ? <div className="empty">No claims yet</div> : (
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>Crew</th><th>Event</th><th>Type</th><th>Description</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
+                  <thead><tr><th>Crew</th><th>Event</th><th>Type</th><th>Description</th><th>Amount</th><th>Receipt</th><th>Status</th><th>Action</th></tr></thead>
                   <tbody>
                     {claims.map(cl => {
                       const c = crew.find(x => x.id === cl.user_id)
@@ -341,6 +341,7 @@ export default function Admin() {
                           <td><span className="badge badge-neutral">{cl.type}</span></td>
                           <td style={{ fontSize: '13px', color: 'var(--muted)', maxWidth: '200px' }}>{cl.description || '—'}{cl.distance_km ? ` (${cl.distance_km}km)` : ''}</td>
                           <td style={{ fontWeight: 600 }}>RM {cl.amount.toFixed(2)}</td>
+                          <td>{cl.receipt_url ? <a href={cl.receipt_url} target="_blank" rel="noreferrer" style={{ fontSize: '18px', textDecoration: 'none' }}>📎</a> : '—'}</td>
                           <td><span className={`badge badge-${cl.status}`}>{cl.status}</span></td>
                           <td>
                             <select value={cl.status} onChange={e => updateClaimStatus(cl.id, e.target.value)} style={{ fontSize: '12px', padding: '4px 8px', width: 'auto', borderRadius: '6px', border: '1px solid var(--border-md)' }}>
