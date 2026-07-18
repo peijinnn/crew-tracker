@@ -12,7 +12,7 @@ function fmtDate(dt: string) {
   return new Date(dt).toLocaleDateString('en-MY', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-type User = { id: string; name: string; email: string; phone?: string; role: string; hourly_rate: number; home_area?: string; bank_details?: string }
+type User = { id: string; name: string; email?: string; phone: string; role: string; hourly_rate: number; home_area?: string; bank_details?: string }
 type Event = { id: string; name: string; venue: string; venue_lat?: number; venue_lng?: number; event_date: string; event_assignments?: { user_id: string; role: string; users: { id: string; name: string } }[] }
 type Session = { id: string; user_id: string; event_id: string; check_in: string; check_out?: string; hours?: number; check_in_lat?: number; check_in_lng?: number; users?: { id: string; name: string; hourly_rate: number }; events?: { id: string; name: string; venue: string } }
 type Claim = { id: string; user_id: string; event_id: string; type: string; description?: string; amount: number; status: string; distance_km?: number; from_location?: string; to_location?: string; receipt_note?: string; receipt_url?: string; created_at: string; users?: { id: string; name: string }; events?: { id: string; name: string } }
@@ -61,7 +61,7 @@ export default function Admin() {
   }, [user, loading, router, load])
 
   const addCrew = async () => {
-    if (!newName || !newEmail || !newPass) { setMsg({ type: 'error', text: 'Name, email and password required' }); return }
+    if (!newName || !newPhone || !newPass) { setMsg({ type: 'error', text: 'Name, phone and password required' }); return }
     setBusy(true)
     const res = await api(token).post('/api/crew', { name: newName, email: newEmail, password: newPass, phone: newPhone, role: newRole, hourly_rate: parseFloat(newRate) || 0, home_area: newArea, bank_details: newBank })
     setBusy(false)
@@ -198,9 +198,9 @@ export default function Admin() {
               <div className="card-title">Add crew member</div>
               <div className="grid2">
                 <div className="field"><label>Full name *</label><input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Ahmad Faris" /></div>
-                <div className="field"><label>Email * (used to log in)</label><input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="ahmad@email.com" /></div>
+                <div className="field"><label>Phone * (used to log in)</label><input type="tel" value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="012-345 6789" /></div>
                 <div className="field"><label>Password *</label><input type="password" value={newPass} onChange={e => setNewPass(e.target.value)} placeholder="Set their login password" /></div>
-                <div className="field"><label>Phone</label><input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="012-345 6789" /></div>
+                <div className="field"><label>Email (optional)</label><input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="ahmad@email.com" /></div>
                 <div className="field"><label>Hourly rate (RM)</label><input type="number" value={newRate} onChange={e => setNewRate(e.target.value)} placeholder="12.00" step="0.50" /></div>
                 <div className="field"><label>Role</label><select value={newRole} onChange={e => setNewRole(e.target.value)}><option value="crew">Crew</option><option value="full-time">Full Time</option><option value="team-lead">Team Lead</option><option value="admin">Admin</option></select></div>
               </div>
@@ -212,18 +212,18 @@ export default function Admin() {
               {crew.length === 0 ? <div className="empty">No crew yet</div> : (
                 <div className="table-wrap">
                   <table>
-                    <thead><tr><th>Member</th><th>Role</th><th>Contact</th><th>Rate</th><th></th></tr></thead>
+                    <thead><tr><th>Member</th><th>Role</th><th>Email</th><th>Rate</th><th></th></tr></thead>
                     <tbody>
                       {crew.map((c, i) => (
                         <tr key={c.id}>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                               <div className="avatar" style={avatarStyle(i)}>{initials(c.name)}</div>
-                              <div><div style={{ fontWeight: 600 }}>{c.name}</div><div style={{ fontSize: '12px', color: 'var(--muted)' }}>{c.email}</div></div>
+                              <div><div style={{ fontWeight: 600 }}>{c.name}</div><div style={{ fontSize: '12px', color: 'var(--muted)' }}>{c.phone}</div></div>
                             </div>
                           </td>
                           <td><span className="badge badge-paid" style={{ textTransform: 'capitalize' }}>{c.role.replace('-', ' ')}</span></td>
-                          <td style={{ fontSize: '13px' }}>{c.phone || '—'}</td>
+                          <td style={{ fontSize: '13px' }}>{c.email || '—'}</td>
                           <td>RM {(c.hourly_rate || 0).toFixed(2)}/hr</td>
                           <td><button className="btn" style={{ padding: '4px 10px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => removeCrew(c.id, c.name)}>Remove</button></td>
                         </tr>
@@ -385,7 +385,7 @@ export default function Admin() {
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                               <div className="avatar" style={avatarStyle(c.idx)}>{initials(c.name)}</div>
-                              <div><div style={{ fontWeight: 600 }}>{c.name}</div><div style={{ fontSize: '12px', color: 'var(--muted)' }}>{c.email}</div></div>
+                              <div><div style={{ fontWeight: 600 }}>{c.name}</div><div style={{ fontSize: '12px', color: 'var(--muted)' }}>{c.phone}</div></div>
                             </div>
                           </td>
                           <td>{c.sessions}</td>

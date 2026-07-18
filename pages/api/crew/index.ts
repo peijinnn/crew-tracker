@@ -29,12 +29,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method === 'POST') {
       requireAdmin(req)
       const { name, email, password, phone, role, hourly_rate, home_area, bank_details } = req.body
-      if (!name || !email || !password) return res.status(400).json({ error: 'Name, email and password required' })
+      if (!name || !phone || !password) return res.status(400).json({ error: 'Name, phone and password required' })
       const password_hash = await bcrypt.hash(password, 10)
       const { data, error } = await supabaseAdmin
         .from('users')
-        .insert({ name, email: email.toLowerCase(), password_hash, phone, role: role || 'staff', hourly_rate, home_area, bank_details })
-        .select('id,name,email,role,hourly_rate,home_area,bank_details')
+        .insert({ name, email: email || null, password_hash, phone: phone.trim(), role: role || 'staff', hourly_rate, home_area, bank_details })
+        .select('id,name,email,phone,role,hourly_rate,home_area,bank_details')
         .single()
       if (error) return res.status(400).json({ error: error.message })
       return res.status(201).json(data)

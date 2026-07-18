@@ -6,7 +6,7 @@ import { useAuth } from '../lib/useAuth'
 export default function Login() {
   const { login, user, loading } = useAuth()
   const router = useRouter()
-  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -18,7 +18,7 @@ export default function Login() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(''); setBusy(true)
-    try { await login(email, password) }
+    try { await login(phone, password) }
     catch (err: unknown) { setError(err instanceof Error ? err.message : 'Login failed') }
     finally { setBusy(false) }
   }
@@ -39,8 +39,8 @@ export default function Login() {
           <div className="card">
             <form onSubmit={submit}>
               <div className="field">
-                <label>Email address</label>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" required autoFocus />
+                <label>Phone number</label>
+                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="012-345 6789" required autoFocus />
               </div>
               <div className="field">
                 <label>Password</label>

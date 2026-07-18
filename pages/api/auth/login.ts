@@ -6,13 +6,13 @@ import { signToken } from '../../../lib/auth'
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  const { email, password } = req.body
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' })
+  const { phone, password } = req.body
+  if (!phone || !password) return res.status(400).json({ error: 'Phone and password required' })
 
   const { data: user, error } = await supabaseAdmin
     .from('users')
     .select('*')
-    .eq('email', email.toLowerCase().trim())
+    .eq('phone', phone.trim())
     .single()
 
   if (error || !user) return res.status(401).json({ error: 'Invalid credentials' })
@@ -22,13 +22,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const token = signToken({
     userId: user.id,
-    email: user.email,
+    phone: user.phone,
     name: user.name,
     role: user.role,
   })
 
   res.json({
     token,
-    user: { id: user.id, name: user.name, email: user.email, role: user.role },
+    user: { id: user.id, name: user.name, phone: user.phone, role: user.role },
   })
 }

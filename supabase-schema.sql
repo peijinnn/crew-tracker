@@ -4,8 +4,8 @@
 create table users (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  phone text,
-  email text unique,
+  phone text unique not null,
+  email text,
   password_hash text not null,
   role text not null default 'staff', -- 'admin' or 'staff'
   hourly_rate numeric(8,2) default 0,
@@ -83,5 +83,5 @@ alter table event_assignments enable row level security;
 
 -- Insert a default admin user (password: admin123 — CHANGE THIS after setup)
 -- bcrypt hash of "admin123"
-insert into users (name, email, password_hash, role) values
-  ('Admin', 'admin@yourcompany.com', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin');
+insert into users (name, phone, password_hash, role) values
+  ('Admin', '0000000000', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin');

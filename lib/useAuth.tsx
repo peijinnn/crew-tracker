@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { useRouter } from 'next/router'
 
-interface User { id: string; name: string; email: string; role: 'admin' | 'staff' }
-interface AuthCtx { user: User | null; token: string | null; login: (email: string, password: string) => Promise<void>; logout: () => void; loading: boolean }
+interface User { id: string; name: string; phone: string; role: 'admin' | 'staff' }
+interface AuthCtx { user: User | null; token: string | null; login: (phone: string, password: string) => Promise<void>; logout: () => void; loading: boolean }
 
 const Ctx = createContext<AuthCtx>({ user: null, token: null, login: async () => {}, logout: () => {}, loading: true })
 
@@ -19,10 +19,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false)
   }, [])
 
-  const login = async (email: string, password: string) => {
+  const login = async (phone: string, password: string) => {
     const res = await fetch('/api/auth/login', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ phone, password })
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Login failed')

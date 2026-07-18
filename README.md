@@ -67,10 +67,10 @@ Then go to **Deployments** and click **Redeploy** to apply the variables.
 Your app is now live at `https://your-project.vercel.app`
 
 Default admin login (set in the SQL schema):
-- **Email:** `admin@yourcompany.com`
+- **Phone:** `0000000000`
 - **Password:** `admin123`
 
-⚠️ **Change this password immediately!** Go into Supabase > Table Editor > users and update the row, or add a "change password" API route.
+⚠️ **Change this password and phone number immediately!** Go into Supabase > Table Editor > users and update the row, or add a "change password" API route.
 
 To change the password, run this in Supabase SQL Editor (replace with a new bcrypt hash):
 ```sql
@@ -83,9 +83,9 @@ UPDATE users SET password_hash = 'NEW_HASH_HERE' WHERE email = 'admin@yourcompan
 ## Step 5 — Add staff and start using it
 
 1. Log in as admin
-2. Go to **Crew** tab → add each staff member with their name, email, password, and hourly rate
+2. Go to **Crew** tab → add each staff member with their name, phone number, password, and hourly rate
 3. Go to **Events** tab → create events and assign crew
-4. Share the URL with your staff — they log in with their email/password
+4. Share the URL with your staff — they log in with their phone number/password
 5. Staff check in on their phone when they arrive at the event — their GPS location is recorded
 6. Staff check out when done — hours calculated automatically
 7. Staff submit claims for meal, transport, parking from the Claims tab
