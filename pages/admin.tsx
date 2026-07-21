@@ -77,6 +77,20 @@ export default function Admin() {
     await load()
   }
 
+  const [editingRateId, setEditingRateId] = useState<string | null>(null)
+  const [editRateValue, setEditRateValue] = useState('')
+
+  const startEditRate = (c: User) => { setEditingRateId(c.id); setEditRateValue(String(c.hourly_rate || 0)) }
+  const cancelEditRate = () => { setEditingRateId(null); setEditRateValue('') }
+  const saveRate = async (id: string) => {
+    const hourly_rate = parseFloat(editRateValue)
+    if (isNaN(hourly_rate) || hourly_rate < 0) { setMsg({ type: 'error', text: 'Enter a valid rate' }); return }
+    const res = await api(token).patch('/api/crew', { id, hourly_rate })
+    if (res.error) { setMsg({ type: 'error', text: res.error }); return }
+    setEditingRateId(null); setEditRateValue('')
+    await load()
+  }
+
   const addEvent = async () => {
     if (!evName || !evVenue || !evDate) { setMsg({ type: 'error', text: 'Name, venue and date required' }); return }
     setBusy(true)
@@ -224,7 +238,18 @@ export default function Admin() {
                           </td>
                           <td><span className="badge badge-paid" style={{ textTransform: 'capitalize' }}>{c.role.replace('-', ' ')}</span></td>
                           <td style={{ fontSize: '13px' }}>{c.email || '—'}</td>
-                          <td>RM {(c.hourly_rate || 0).toFixed(2)}/hr</td>
+                          <td>
+                            {editingRateId === c.id ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span>RM</span>
+                                <input type="number" value={editRateValue} onChange={e => setEditRateValue(e.target.value)} step="0.50" min="0" style={{ width: '80px' }} autoFocus onKeyDown={e => { if (e.key === 'Enter') saveRate(c.id); if (e.key === 'Escape') cancelEditRate() }} />
+                                <button className="btn btn-primary" style={{ padding: '4px 8px', fontSize: '12px' }} onClick={() => saveRate(c.id)}>Save</button>
+                                <button className="btn" style={{ padding: '4px 8px', fontSize: '12px' }} onClick={cancelEditRate}>Cancel</button>
+                              </div>
+                            ) : (
+                              <span style={{ cursor: 'pointer' }} onClick={() => startEditRate(c)} title="Click to edit">RM {(c.hourly_rate || 0).toFixed(2)}/hr ✏️</span>
+                            )}
+                          </td>
                           <td><button className="btn" style={{ padding: '4px 10px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => removeCrew(c.id, c.name)}>Remove</button></td>
                         </tr>
                       ))}
