@@ -13,7 +13,7 @@ function fmtDate(dt: string) {
 }
 
 type User = { id: string; name: string; email?: string; phone: string; role: string; hourly_rate: number; home_area?: string; bank_details?: string }
-type Event = { id: string; name: string; venue: string; venue_lat?: number; venue_lng?: number; event_date: string; event_assignments?: { user_id: string; role: string; users: { id: string; name: string } }[] }
+type Event = { id: string; name: string; venue: string; venue_lat?: number; venue_lng?: number; event_date: string; start_time?: string; end_time?: string; event_assignments?: { user_id: string; role: string; users: { id: string; name: string } }[] }
 type Session = { id: string; user_id: string; event_id: string; check_in: string; check_out?: string; hours?: number; check_in_lat?: number; check_in_lng?: number; users?: { id: string; name: string; hourly_rate: number }; events?: { id: string; name: string; venue: string } }
 type Claim = { id: string; user_id: string; event_id: string; type: string; description?: string; amount: number; status: string; distance_km?: number; from_location?: string; to_location?: string; receipt_note?: string; receipt_url?: string; created_at: string; users?: { id: string; name: string }; events?: { id: string; name: string } }
 
@@ -96,19 +96,38 @@ export default function Admin() {
     await load()
   }
 
+  const [editingEventId, setEditingEventId] = useState<string | null>(null)
+
+  const resetEventForm = () => {
+    setEditingEventId(null)
+    setEvName(''); setEvVenue(''); setEvDate(''); setEvLat(''); setEvLng(''); setEvStart(''); setEvEnd(''); setEvAssigned([])
+  }
+
+  const startEditEvent = (ev: Event) => {
+    setEditingEventId(ev.id)
+    setEvName(ev.name); setEvVenue(ev.venue); setEvDate(ev.event_date)
+    setEvLat(ev.venue_lat != null ? String(ev.venue_lat) : ''); setEvLng(ev.venue_lng != null ? String(ev.venue_lng) : '')
+    setEvStart(ev.start_time || ''); setEvEnd(ev.end_time || '')
+    setEvAssigned(ev.event_assignments?.map(a => a.user_id) || [])
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   const addEvent = async () => {
     if (!evName || !evVenue || !evDate) { setMsg({ type: 'error', text: 'Name, venue and date required' }); return }
     setBusy(true)
-    const res = await api(token).post('/api/crew/events', {
+    const payload = {
       name: evName, venue: evVenue, event_date: evDate,
       venue_lat: evLat ? parseFloat(evLat) : undefined, venue_lng: evLng ? parseFloat(evLng) : undefined,
       start_time: evStart || undefined, end_time: evEnd || undefined,
       assigned_users: evAssigned.map(uid => ({ userId: uid, role: 'Crew' }))
-    })
+    }
+    const res = editingEventId
+      ? await api(token).patch('/api/crew/events', { id: editingEventId, ...payload })
+      : await api(token).post('/api/crew/events', payload)
     setBusy(false)
     if (res.error) { setMsg({ type: 'error', text: res.error }); return }
-    setMsg({ type: 'success', text: `✅ Event "${evName}" created!` })
-    setEvName(''); setEvVenue(''); setEvDate(''); setEvLat(''); setEvLng(''); setEvStart(''); setEvEnd(''); setEvAssigned([])
+    setMsg({ type: 'success', text: editingEventId ? `✅ Event "${evName}" updated!` : `✅ Event "${evName}" created!` })
+    resetEventForm()
     await load()
   }
 
@@ -275,7 +294,7 @@ export default function Admin() {
         {tab === 'events' && (
           <div>
             <div className="card" style={{ marginBottom: '1rem' }}>
-              <div className="card-title">Create event</div>
+              <div className="card-title">{editingEventId ? 'Edit event' : 'Create event'}</div>
               <div className="grid2">
                 <div className="field"><label>Event name *</label><input value={evName} onChange={e => setEvName(e.target.value)} placeholder="Sunway Wedding Expo" /></div>
                 <div className="field"><label>Venue *</label><input value={evVenue} onChange={e => setEvVenue(e.target.value)} placeholder="Sunway Pyramid Convention Centre" /></div>
@@ -293,7 +312,8 @@ export default function Admin() {
                   {crew.filter(c => c.role !== 'admin').map(c => <option key={c.id} value={c.id}>{c.name} ({c.role})</option>)}
                 </select>
               </div>
-              <button className="btn btn-primary" onClick={addEvent} disabled={busy}>{busy ? <span className="spinner" /> : '+ Create event'}</button>
+              <button className="btn btn-primary" onClick={addEvent} disabled={busy}>{busy ? <span className="spinner" /> : editingEventId ? 'Save changes' : '+ Create event'}</button>
+              {editingEventId && <button className="btn" style={{ marginLeft: '8px' }} onClick={resetEventForm} disabled={busy}>Cancel</button>}
             </div>
 
             <div className="card">
@@ -309,7 +329,10 @@ export default function Admin() {
                           <td style={{ fontSize: '13px' }}>{fmtDate(ev.event_date)}</td>
                           <td style={{ fontSize: '13px' }}>{ev.venue}{ev.venue_lat && <> · <a href={`https://maps.google.com/?q=${ev.venue_lat},${ev.venue_lng}`} target="_blank" rel="noreferrer" className="location-pill" style={{ marginLeft: '4px' }}>Map</a></>}</td>
                           <td style={{ fontSize: '13px' }}>{ev.event_assignments?.map(a => a.users?.name).join(', ') || '—'}</td>
-                          <td><button className="btn" style={{ padding: '4px 10px', fontSize: '12px', color: 'var(--danger)' }} onClick={async () => { if (confirm('Delete event?')) { await api(token).del('/api/crew/events', { id: ev.id }); await load() } }}>Delete</button></td>
+                          <td style={{ whiteSpace: 'nowrap' }}>
+                            <button className="btn" style={{ padding: '4px 10px', fontSize: '12px', marginRight: '6px' }} onClick={() => startEditEvent(ev)}>Edit</button>
+                            <button className="btn" style={{ padding: '4px 10px', fontSize: '12px', color: 'var(--danger)' }} onClick={async () => { if (confirm('Delete event?')) { await api(token).del('/api/crew/events', { id: ev.id }); await load() } }}>Delete</button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>

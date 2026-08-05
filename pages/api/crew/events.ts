@@ -48,6 +48,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(201).json(event)
     }
 
+    if (req.method === 'PATCH') {
+      requireAdmin(req)
+      const { id, name, venue, venue_lat, venue_lng, event_date, start_time, end_time, assigned_users } = req.body
+      if (!id) return res.status(400).json({ error: 'id required' })
+      if (!name || !venue || !event_date) return res.status(400).json({ error: 'Name, venue and date required' })
+
+      const { data: event, error } = await supabaseAdmin
+        .from('events')
+        .update({ name, venue, venue_lat, venue_lng, event_date, start_time, end_time })
+        .eq('id', id)
+        .select().single()
+      if (error) return res.status(400).json({ error: error.message })
+
+      if (assigned_users) {
+        await supabaseAdmin.from('event_assignments').delete().eq('event_id', id)
+        if (assigned_users.length) {
+          await supabaseAdmin.from('event_assignments').insert(
+            assigned_users.map((u: { userId: string, role: string }) => ({
+              event_id: id,
+              user_id: u.userId,
+              role: u.role || 'Crew'
+            }))
+          )
+        }
+      }
+      return res.json(event)
+    }
+
     if (req.method === 'DELETE') {
       requireAdmin(req)
       const { id } = req.body
