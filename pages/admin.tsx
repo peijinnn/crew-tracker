@@ -47,8 +47,8 @@ export default function Admin() {
   // New event form
   const [evName, setEvName] = useState(''); const [evVenue, setEvVenue] = useState('')
   const [evDate, setEvDate] = useState(''); const [evLat, setEvLat] = useState('')
-  const [evLng, setEvLng] = useState(''); const [evStart, setEvStart] = useState('')
-  const [evEnd, setEvEnd] = useState(''); const [evAssigned, setEvAssigned] = useState<string[]>([])
+  const [evLng, setEvLng] = useState(''); const [evCheckIn, setEvCheckIn] = useState('')
+  const [evEventStart, setEvEventStart] = useState(''); const [evAssigned, setEvAssigned] = useState<string[]>([])
 
   const load = useCallback(async () => {
     if (!token) return
@@ -106,14 +106,14 @@ export default function Admin() {
 
   const resetEventForm = () => {
     setEditingEventId(null)
-    setEvName(''); setEvVenue(''); setEvDate(''); setEvLat(''); setEvLng(''); setEvStart(''); setEvEnd(''); setEvAssigned([])
+    setEvName(''); setEvVenue(''); setEvDate(''); setEvLat(''); setEvLng(''); setEvCheckIn(''); setEvEventStart(''); setEvAssigned([])
   }
 
   const startEditEvent = (ev: Event) => {
     setEditingEventId(ev.id)
     setEvName(ev.name); setEvVenue(ev.venue); setEvDate(ev.event_date)
     setEvLat(ev.venue_lat != null ? String(ev.venue_lat) : ''); setEvLng(ev.venue_lng != null ? String(ev.venue_lng) : '')
-    setEvStart(ev.start_time || ''); setEvEnd(ev.end_time || '')
+    setEvCheckIn(ev.start_time || ''); setEvEventStart(ev.end_time || '')
     setEvAssigned(ev.event_assignments?.map(a => a.user_id) || [])
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -124,7 +124,7 @@ export default function Admin() {
     const payload = {
       name: evName, venue: evVenue, event_date: evDate,
       venue_lat: evLat ? parseFloat(evLat) : undefined, venue_lng: evLng ? parseFloat(evLng) : undefined,
-      start_time: evStart || undefined, end_time: evEnd || undefined,
+      start_time: evCheckIn || undefined, end_time: evEventStart || undefined,
       assigned_users: evAssigned.map(uid => ({ userId: uid, role: 'Crew' }))
     }
     const res = editingEventId
@@ -306,8 +306,8 @@ export default function Admin() {
                 <div className="field"><label>Venue *</label><input value={evVenue} onChange={e => setEvVenue(e.target.value)} placeholder="Sunway Pyramid Convention Centre" /></div>
                 <div className="field"><label>Date *</label><input type="date" value={evDate} onChange={e => setEvDate(e.target.value)} /></div>
                 <div className="grid2" style={{ gap: '8px' }}>
-                  <div className="field"><label>Start time</label><input type="time" value={evStart} onChange={e => setEvStart(e.target.value)} /></div>
-                  <div className="field"><label>End time</label><input type="time" value={evEnd} onChange={e => setEvEnd(e.target.value)} /></div>
+                  <div className="field"><label>Check in at office time</label><input type="time" value={evCheckIn} onChange={e => setEvCheckIn(e.target.value)} /></div>
+                  <div className="field"><label>Event start time</label><input type="time" value={evEventStart} onChange={e => setEvEventStart(e.target.value)} /></div>
                 </div>
                 <div className="field">
                   <label>Venue location (optional, for map — search to pin it)</label>
