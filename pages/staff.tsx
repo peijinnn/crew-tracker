@@ -11,10 +11,15 @@ const TRANSPORT_RATE = 0.45
 
 function fmt(dt: string) {
   if (!dt) return '—'
-  return new Date(dt).toLocaleString('en-MY', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+  const d = new Date(dt)
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const time = d.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' })
+  return `${day}/${month}/${d.getFullYear()}, ${time}`
 }
 function fmtDate(dt: string) {
-  return new Date(dt).toLocaleDateString('en-MY', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
+  const [y, m, d] = dt.split('-')
+  return `${d}/${m}/${y}`
 }
 
 function SortableRoutePoint({ rp, i, total, isConfirmed, onPlaceSelected, onRemove }: {
