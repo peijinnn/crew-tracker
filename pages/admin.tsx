@@ -18,14 +18,27 @@ function fmtDate(dt: string) {
   return `${d}/${m}/${y}`
 }
 
-// Native <input type="date"> displays in the browser/OS locale, which we can't force to
-// dd/mm/yyyy on its own — so this pairs a dd/mm/yyyy text field with a hidden native date
-// input, opened via the calendar button, to get the picker back with consistent formatting.
+const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+
+// Native <input type="date"> displays in the browser/OS locale (can't force dd/mm/yyyy) and
+// its showPicker() popup doesn't reliably close on selection across browsers — so this is a
+// small self-contained calendar dropdown we fully control instead.
 function DateInputDMY({ value, onChange }: { value: string; onChange: (iso: string) => void }) {
   const [text, setText] = useState(() => value ? fmtDate(value) : '')
-  const pickerRef = useRef<HTMLInputElement>(null)
+  const [open, setOpen] = useState(false)
+  const [viewDate, setViewDate] = useState(() => value ? new Date(value + 'T00:00:00') : new Date())
+  const wrapRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { setText(value ? fmtDate(value) : '') }, [value])
+
+  useEffect(() => {
+    if (!open) return
+    const onDocClick = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [open])
 
   const handleChange = (raw: string) => {
     const digits = raw.replace(/\D/g, '').slice(0, 8)
@@ -37,28 +50,59 @@ function DateInputDMY({ value, onChange }: { value: string; onChange: (iso: stri
     else if (digits.length === 0) onChange('')
   }
 
-  const openPicker = () => {
-    const el = pickerRef.current as (HTMLInputElement & { showPicker?: () => void }) | null
-    if (el?.showPicker) el.showPicker()
-    else el?.focus()
+  const toggleOpen = () => {
+    setViewDate(value ? new Date(value + 'T00:00:00') : new Date())
+    setOpen(o => !o)
   }
 
+  const pickDay = (day: number) => {
+    const iso = `${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    onChange(iso)
+    setOpen(false)
+  }
+
+  const year = viewDate.getFullYear(), month = viewDate.getMonth()
+  const firstDow = new Date(year, month, 1).getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const cells: (number | null)[] = [...Array(firstDow).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
+
   return (
-    <div style={{ position: 'relative', display: 'flex' }}>
-      <input
-        type="text" inputMode="numeric" value={text} onChange={e => handleChange(e.target.value)}
-        placeholder="dd/mm/yyyy" maxLength={10} style={{ flex: 1, paddingRight: '34px' }}
-      />
-      <button
-        type="button" onClick={openPicker} title="Pick a date"
-        style={{ position: 'absolute', right: '4px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', padding: '4px' }}
-      >📅</button>
-      <input
-        ref={pickerRef} type="date" value={value}
-        onChange={e => { onChange(e.target.value); e.target.blur() }}
-        tabIndex={-1} aria-hidden="true"
-        style={{ position: 'absolute', inset: 0, opacity: 0, width: '1px', height: '1px', pointerEvents: 'none' }}
-      />
+    <div ref={wrapRef} style={{ position: 'relative' }}>
+      <div style={{ position: 'relative', display: 'flex' }}>
+        <input
+          type="text" inputMode="numeric" value={text} onChange={e => handleChange(e.target.value)}
+          placeholder="dd/mm/yyyy" maxLength={10} style={{ flex: 1, paddingRight: '34px' }}
+        />
+        <button
+          type="button" onClick={toggleOpen} title="Pick a date"
+          style={{ position: 'absolute', right: '4px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', padding: '4px' }}
+        >📅</button>
+      </div>
+      {open && (
+        <div style={{ position: 'absolute', zIndex: 20, top: 'calc(100% + 4px)', left: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px', boxShadow: 'var(--shadow)', width: '240px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <button type="button" onClick={() => setViewDate(new Date(year, month - 1, 1))} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', padding: '2px 8px' }}>‹</button>
+            <span style={{ fontSize: '13px', fontWeight: 600 }}>{viewDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</span>
+            <button type="button" onClick={() => setViewDate(new Date(year, month + 1, 1))} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', padding: '2px 8px' }}>›</button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', fontSize: '11px', color: 'var(--muted)', textAlign: 'center', marginBottom: '4px' }}>
+            {WEEKDAYS.map(d => <div key={d}>{d}</div>)}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px' }}>
+            {cells.map((day, i) => {
+              if (day === null) return <div key={i} />
+              const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+              const isSelected = iso === value
+              return (
+                <button
+                  key={i} type="button" onClick={() => pickDay(day)}
+                  style={{ padding: '6px 0', fontSize: '12px', border: 'none', borderRadius: '6px', cursor: 'pointer', background: isSelected ? 'var(--accent)' : 'transparent', color: isSelected ? '#fff' : 'inherit' }}
+                >{day}</button>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
