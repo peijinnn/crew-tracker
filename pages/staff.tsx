@@ -253,8 +253,12 @@ export default function Staff() {
     finally { setBusy(false) }
   }
 
-  const todayEvents = events.filter(e => e.event_date === new Date().toISOString().slice(0, 10))
-  const upcomingEvents = events.filter(e => e.event_date > new Date().toISOString().slice(0, 10))
+  // Use local calendar date, not toISOString()'s UTC date — Malaysia is UTC+8, so between
+  // midnight and 8am local, the UTC date is still "yesterday" and would misclassify today's events.
+  const now = new Date()
+  const todayLocal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const todayEvents = events.filter(e => e.event_date === todayLocal)
+  const upcomingEvents = events.filter(e => e.event_date > todayLocal)
 
   const totalHours = sessions.filter(s => s.check_out).reduce((s, x) => s + (x.hours || 0), 0)
   const totalClaims = claims.reduce((s, c) => s + c.amount, 0)
