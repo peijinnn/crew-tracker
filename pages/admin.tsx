@@ -18,6 +18,26 @@ function fmtDate(dt: string) {
   return `${d}/${m}/${y}`
 }
 
+// Native <input type="date"> displays in the browser/OS locale, which we can't force to
+// dd/mm/yyyy — so this is a plain text field that always types and displays that way.
+function DateInputDMY({ value, onChange }: { value: string; onChange: (iso: string) => void }) {
+  const [text, setText] = useState(() => value ? fmtDate(value) : '')
+
+  useEffect(() => { setText(value ? fmtDate(value) : '') }, [value])
+
+  const handleChange = (raw: string) => {
+    const digits = raw.replace(/\D/g, '').slice(0, 8)
+    const formatted = digits.length > 4 ? `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+      : digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}`
+      : digits
+    setText(formatted)
+    if (digits.length === 8) onChange(`${digits.slice(4, 8)}-${digits.slice(2, 4)}-${digits.slice(0, 2)}`)
+    else if (digits.length === 0) onChange('')
+  }
+
+  return <input type="text" inputMode="numeric" value={text} onChange={e => handleChange(e.target.value)} placeholder="dd/mm/yyyy" maxLength={10} />
+}
+
 type User = { id: string; name: string; email?: string; phone: string; role: string; hourly_rate: number; home_area?: string; bank_details?: string }
 type Event = { id: string; name: string; venue: string; venue_lat?: number; venue_lng?: number; event_date: string; start_time?: string; end_time?: string; event_assignments?: { user_id: string; role: string; users: { id: string; name: string } }[] }
 type Session = { id: string; user_id: string; event_id: string; check_in: string; check_out?: string; hours?: number; check_in_lat?: number; check_in_lng?: number; users?: { id: string; name: string; hourly_rate: number }; events?: { id: string; name: string; venue: string } }
@@ -304,7 +324,7 @@ export default function Admin() {
               <div className="grid2">
                 <div className="field"><label>Event name *</label><input value={evName} onChange={e => setEvName(e.target.value)} placeholder="Sunway Wedding Expo" /></div>
                 <div className="field"><label>Venue *</label><input value={evVenue} onChange={e => setEvVenue(e.target.value)} placeholder="Sunway Pyramid Convention Centre" /></div>
-                <div className="field"><label>Date *</label><input type="date" value={evDate} onChange={e => setEvDate(e.target.value)} /></div>
+                <div className="field"><label>Date *</label><DateInputDMY value={evDate} onChange={setEvDate} /></div>
                 <div className="grid2" style={{ gap: '8px' }}>
                   <div className="field"><label>Check in at office time</label><input type="time" value={evCheckIn} onChange={e => setEvCheckIn(e.target.value)} /></div>
                   <div className="field"><label>Event start time</label><input type="time" value={evEventStart} onChange={e => setEvEventStart(e.target.value)} /></div>
