@@ -1,21 +1,31 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { useRouter } from 'next/router'
 
-interface User { id: string; name: string; phone: string; role: 'admin' | 'staff' }
-interface AuthCtx { user: User | null; token: string | null; login: (phone: string, password: string) => Promise<void>; logout: () => void; loading: boolean }
+interface User { id: string; name: string; phone: string; role: string }
+interface AuthCtx {
+  user: User | null; token: string | null; login: (phone: string, password: string) => Promise<void>; logout: () => void; loading: boolean
+  viewAs: (userId: string) => Promise<void>; exitViewAs: () => void; viewingAsAdmin: User | null
+}
 
-const Ctx = createContext<AuthCtx>({ user: null, token: null, login: async () => {}, logout: () => {}, loading: true })
+const Ctx = createContext<AuthCtx>({
+  user: null, token: null, login: async () => {}, logout: () => {}, loading: true,
+  viewAs: async () => {}, exitViewAs: () => {}, viewingAsAdmin: null,
+})
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [viewingAsAdmin, setViewingAsAdmin] = useState<User | null>(null)
   const router = useRouter()
 
   useEffect(() => {
     const t = localStorage.getItem('crew_token')
     const u = localStorage.getItem('crew_user')
     if (t && u) { setToken(t); setUser(JSON.parse(u)) }
+    const at = localStorage.getItem('crew_admin_token')
+    const au = localStorage.getItem('crew_admin_user')
+    if (at && au) setViewingAsAdmin(JSON.parse(au))
     setLoading(false)
   }, [])
 
@@ -34,10 +44,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem('crew_token'); localStorage.removeItem('crew_user')
-    setToken(null); setUser(null); router.push('/login')
+    localStorage.removeItem('crew_admin_token'); localStorage.removeItem('crew_admin_user')
+    setToken(null); setUser(null); setViewingAsAdmin(null); router.push('/login')
   }
 
-  return <Ctx.Provider value={{ user, token, login, logout, loading }}>{children}</Ctx.Provider>
+  const viewAs = async (userId: string) => {
+    if (!token || !user) return
+    const res = await fetch('/api/auth/view-as', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ userId }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Could not switch view')
+
+    // Stash the real admin session so we can restore it later, unless we're already impersonating.
+    if (!viewingAsAdmin) {
+      localStorage.setItem('crew_admin_token', token)
+      localStorage.setItem('crew_admin_user', JSON.stringify(user))
+      setViewingAsAdmin(user)
+    }
+    localStorage.setItem('crew_token', data.token)
+    localStorage.setItem('crew_user', JSON.stringify(data.user))
+    setToken(data.token); setUser(data.user)
+    router.push('/staff')
+  }
+
+  const exitViewAs = () => {
+    const at = localStorage.getItem('crew_admin_token')
+    const au = localStorage.getItem('crew_admin_user')
+    if (!at || !au) return
+    localStorage.setItem('crew_token', at)
+    localStorage.setItem('crew_user', au)
+    localStorage.removeItem('crew_admin_token'); localStorage.removeItem('crew_admin_user')
+    setToken(at); setUser(JSON.parse(au)); setViewingAsAdmin(null)
+    router.push('/admin')
+  }
+
+  return <Ctx.Provider value={{ user, token, login, logout, loading, viewAs, exitViewAs, viewingAsAdmin }}>{children}</Ctx.Provider>
 }
 
 export const useAuth = () => useContext(Ctx)

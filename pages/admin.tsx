@@ -22,7 +22,7 @@ function avatarStyle(i: number) { const [bg, fg] = AVATAR_COLORS[i % AVATAR_COLO
 function initials(n: string) { return n.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) }
 
 export default function Admin() {
-  const { user, token, loading } = useAuth()
+  const { user, token, loading, viewAs } = useAuth()
   const router = useRouter()
   const [tab, setTab] = useState<'dashboard' | 'crew' | 'events' | 'sessions' | 'claims' | 'payroll'>('dashboard')
   const [crew, setCrew] = useState<User[]>([])
@@ -75,6 +75,11 @@ export default function Admin() {
     if (!confirm(`Remove ${name}? This cannot be undone.`)) return
     await api(token).del('/api/crew', { id })
     await load()
+  }
+
+  const handleViewAs = async (id: string) => {
+    try { await viewAs(id) }
+    catch (err: unknown) { setMsg({ type: 'error', text: err instanceof Error ? err.message : 'Could not switch view' }) }
   }
 
   const [editingRateId, setEditingRateId] = useState<string | null>(null)
@@ -250,7 +255,12 @@ export default function Admin() {
                               <span style={{ cursor: 'pointer' }} onClick={() => startEditRate(c)} title="Click to edit">RM {(c.hourly_rate || 0).toFixed(2)}/hr ✏️</span>
                             )}
                           </td>
-                          <td><button className="btn" style={{ padding: '4px 10px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => removeCrew(c.id, c.name)}>Remove</button></td>
+                          <td style={{ whiteSpace: 'nowrap' }}>
+                            {c.id !== user?.id && (
+                              <button className="btn" style={{ padding: '4px 10px', fontSize: '12px', marginRight: '6px' }} onClick={() => handleViewAs(c.id)} title={`View the app as ${c.name}`}>👁️ View as</button>
+                            )}
+                            <button className="btn" style={{ padding: '4px 10px', fontSize: '12px', color: 'var(--danger)' }} onClick={() => removeCrew(c.id, c.name)}>Remove</button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>

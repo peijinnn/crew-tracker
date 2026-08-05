@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import bcrypt from 'bcryptjs'
 import { supabaseAdmin } from '../../../lib/supabase'
 import { requireAdmin, requireAuth } from '../../../lib/auth'
+import { normalizePhone } from '../../../lib/phone'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -33,7 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const password_hash = await bcrypt.hash(password, 10)
       const { data, error } = await supabaseAdmin
         .from('users')
-        .insert({ name, email: email || null, password_hash, phone: phone.trim(), role: role || 'staff', hourly_rate, home_area, bank_details })
+        .insert({ name, email: email || null, password_hash, phone: normalizePhone(phone), role: role || 'staff', hourly_rate, home_area, bank_details })
         .select('id,name,email,phone,role,hourly_rate,home_area,bank_details')
         .single()
       if (error) return res.status(400).json({ error: error.message })
@@ -43,7 +44,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method === 'PATCH') {
       requireAdmin(req)
       const { id, name, phone, role, hourly_rate, home_area, bank_details, password } = req.body
-      const updates: Record<string, unknown> = { name, phone, role, hourly_rate, home_area, bank_details }
+      const updates: Record<string, unknown> = { name, phone: phone ? normalizePhone(phone) : phone, role, hourly_rate, home_area, bank_details }
       if (password) updates.password_hash = await bcrypt.hash(password, 10)
       const { data, error } = await supabaseAdmin
         .from('users').update(updates).eq('id', id)

@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import bcrypt from 'bcryptjs'
 import { supabaseAdmin } from '../../../lib/supabase'
 import { signToken } from '../../../lib/auth'
+import { normalizePhone } from '../../../lib/phone'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).end()
@@ -12,13 +13,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { data: user, error } = await supabaseAdmin
     .from('users')
     .select('*')
-    .eq('phone', phone.trim())
+    .eq('phone', normalizePhone(phone))
     .single()
 
-  if (error || !user) return res.status(401).json({ error: 'Invalid credentials' })
+  if (error || !user) {
+    if (error) console.error('[login] Supabase lookup error:', error)
+    else console.error('[login] No user matched phone:', normalizePhone(phone))
+    return res.status(401).json({ error: 'Invalid credentials' })
+  }
 
   const valid = await bcrypt.compare(password, user.password_hash)
-  if (!valid) return res.status(401).json({ error: 'Invalid credentials' })
+  if (!valid) {
+    console.error('[login] Password mismatch for user:', user.id)
+    return res.status(401).json({ error: 'Invalid credentials' })
+  }
 
   const token = signToken({
     userId: user.id,
