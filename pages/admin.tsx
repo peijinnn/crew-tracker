@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { useAuth, api } from '../lib/useAuth'
@@ -19,9 +19,11 @@ function fmtDate(dt: string) {
 }
 
 // Native <input type="date"> displays in the browser/OS locale, which we can't force to
-// dd/mm/yyyy — so this is a plain text field that always types and displays that way.
+// dd/mm/yyyy on its own — so this pairs a dd/mm/yyyy text field with a hidden native date
+// input, opened via the calendar button, to get the picker back with consistent formatting.
 function DateInputDMY({ value, onChange }: { value: string; onChange: (iso: string) => void }) {
   const [text, setText] = useState(() => value ? fmtDate(value) : '')
+  const pickerRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { setText(value ? fmtDate(value) : '') }, [value])
 
@@ -35,7 +37,29 @@ function DateInputDMY({ value, onChange }: { value: string; onChange: (iso: stri
     else if (digits.length === 0) onChange('')
   }
 
-  return <input type="text" inputMode="numeric" value={text} onChange={e => handleChange(e.target.value)} placeholder="dd/mm/yyyy" maxLength={10} />
+  const openPicker = () => {
+    const el = pickerRef.current as (HTMLInputElement & { showPicker?: () => void }) | null
+    if (el?.showPicker) el.showPicker()
+    else el?.focus()
+  }
+
+  return (
+    <div style={{ position: 'relative', display: 'flex' }}>
+      <input
+        type="text" inputMode="numeric" value={text} onChange={e => handleChange(e.target.value)}
+        placeholder="dd/mm/yyyy" maxLength={10} style={{ flex: 1, paddingRight: '34px' }}
+      />
+      <button
+        type="button" onClick={openPicker} title="Pick a date"
+        style={{ position: 'absolute', right: '4px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', padding: '4px' }}
+      >📅</button>
+      <input
+        ref={pickerRef} type="date" value={value} onChange={e => onChange(e.target.value)}
+        tabIndex={-1} aria-hidden="true"
+        style={{ position: 'absolute', inset: 0, opacity: 0, width: '1px', height: '1px', pointerEvents: 'none' }}
+      />
+    </div>
+  )
 }
 
 type User = { id: string; name: string; email?: string; phone: string; role: string; hourly_rate: number; home_area?: string; bank_details?: string }
