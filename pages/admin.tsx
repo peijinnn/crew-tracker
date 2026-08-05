@@ -54,7 +54,8 @@ function DateInputDMY({ value, onChange }: { value: string; onChange: (iso: stri
         style={{ position: 'absolute', right: '4px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', padding: '4px' }}
       >📅</button>
       <input
-        ref={pickerRef} type="date" value={value} onChange={e => onChange(e.target.value)}
+        ref={pickerRef} type="date" value={value}
+        onChange={e => { onChange(e.target.value); e.target.blur() }}
         tabIndex={-1} aria-hidden="true"
         style={{ position: 'absolute', inset: 0, opacity: 0, width: '1px', height: '1px', pointerEvents: 'none' }}
       />
