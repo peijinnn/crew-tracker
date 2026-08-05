@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { useAuth } from '../lib/useAuth'
 
 export default function Nav({ title }: { title?: string }) {
@@ -23,6 +24,7 @@ export default function Nav({ title }: { title?: string }) {
           <div className="nav-right">
             {user && (
               <>
+                <Link href="/faq" className="btn" style={{ padding: '6px 14px', fontSize: '13px', textDecoration: 'none' }}>❓ FAQ</Link>
                 <span className="nav-user">{user.name}</span>
                 <span className={`nav-badge ${user.role}`}>{user.role}</span>
                 <button className="btn" style={{ padding: '6px 14px', fontSize: '13px' }} onClick={viewingAsAdmin ? exitViewAs : logout}>
