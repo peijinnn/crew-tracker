@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { useAuth, api } from '../lib/useAuth'
 import Nav from '../components/Nav'
+import PlaceAutocomplete from '../components/PlaceAutocomplete'
 
 function fmt(dt: string) {
   if (!dt) return '—'
@@ -308,8 +309,26 @@ export default function Admin() {
                   <div className="field"><label>Start time</label><input type="time" value={evStart} onChange={e => setEvStart(e.target.value)} /></div>
                   <div className="field"><label>End time</label><input type="time" value={evEnd} onChange={e => setEvEnd(e.target.value)} /></div>
                 </div>
-                <div className="field"><label>Venue latitude (optional, for map)</label><input value={evLat} onChange={e => setEvLat(e.target.value)} placeholder="3.07167" /></div>
-                <div className="field"><label>Venue longitude</label><input value={evLng} onChange={e => setEvLng(e.target.value)} placeholder="101.60694" /></div>
+                <div className="field">
+                  <label>Venue location (optional, for map — search to pin it)</label>
+                  <PlaceAutocomplete
+                    key={editingEventId || 'new'}
+                    placeholder="Search for the venue on Google Maps…"
+                    onPlaceSelected={(loc, addr) => {
+                      setEvLat(String(loc.lat())); setEvLng(String(loc.lng()))
+                      if (!evVenue) setEvVenue(addr)
+                    }}
+                  />
+                  {evLat && evLng && (
+                    <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px' }}>
+                      📍 {parseFloat(evLat).toFixed(5)}, {parseFloat(evLng).toFixed(5)}
+                      {' · '}
+                      <a href={`https://maps.google.com/?q=${evLat},${evLng}`} target="_blank" rel="noreferrer" className="location-pill">View on map</a>
+                      {' · '}
+                      <button type="button" className="btn" style={{ padding: '1px 8px', fontSize: '11px' }} onClick={() => { setEvLat(''); setEvLng('') }}>Clear</button>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="field">
                 <label>Assign crew (hold Ctrl/Cmd to select multiple)</label>

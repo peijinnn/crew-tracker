@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { useAuth, api } from '../lib/useAuth'
@@ -6,6 +6,7 @@ import Nav from '../components/Nav'
 import { DndContext, closestCenter, PointerSensor, TouchSensor, KeyboardSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import PlaceAutocomplete from '../components/PlaceAutocomplete'
 
 const TRANSPORT_RATE = 0.45
 
@@ -38,7 +39,7 @@ function SortableRoutePoint({ rp, i, total, isConfirmed, onPlaceSelected, onRemo
       <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#fff', fontWeight: 700, flexShrink: 0 }}>
         {String.fromCharCode(65 + i)}
       </div>
-      <RoutePointInput
+      <PlaceAutocomplete
         placeholder={i === 0 ? 'Starting point' : i === total - 1 ? 'Destination' : `Stop ${String.fromCharCode(65 + i)}`}
         onPlaceSelected={onPlaceSelected}
       />
@@ -48,38 +49,6 @@ function SortableRoutePoint({ rp, i, total, isConfirmed, onPlaceSelected, onRemo
       )}
     </div>
   )
-}
-
-function RoutePointInput({ placeholder, onPlaceSelected }: {
-  placeholder: string
-  onPlaceSelected: (location: any, address: string) => void
-}) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const cbRef = useRef(onPlaceSelected)
-  cbRef.current = onPlaceSelected
-
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined
-    const init = () => {
-      const g = (window as any).google
-      if (!g?.maps?.places || !inputRef.current) return false
-      const ac = new g.maps.places.Autocomplete(inputRef.current, {
-        componentRestrictions: { country: 'my' },
-        fields: ['geometry', 'formatted_address', 'name'],
-      })
-      ac.addListener('place_changed', () => {
-        const p = ac.getPlace()
-        if (p?.geometry) cbRef.current(p.geometry.location, p.formatted_address || p.name || '')
-      })
-      return true
-    }
-    if (!init()) {
-      interval = setInterval(() => { if (init()) clearInterval(interval) }, 300)
-    }
-    return () => { if (interval) clearInterval(interval) }
-  }, [])
-
-  return <input ref={inputRef} type="text" placeholder={placeholder} style={{ flex: 1 }} />
 }
 
 export default function Staff() {
